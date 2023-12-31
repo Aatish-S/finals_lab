@@ -1,0 +1,183 @@
+Lab 04 Install and Configure Neutron
+Step 1 :  Create the neutron user
+#	openstack user create --domain default --password service_pass neutron
+
+Step 2 :  Add the admin role to the neutron user
+#	openstack role add --project service --user neutron admin
+
+Step 3 :  Create the neutron service entity
+#	openstack service create --name neutron --description "OpenStack Networking" network
+
+Step 4 :  Create the Networking service API endpoints
+#	openstack endpoint create --region RegionOne network public http://192.168.0.175:9696
+
+Step 5:  Create the Networking service API endpoints
+#	openstack endpoint create --region RegionOne network internal http://192.168.0.180:9696
+
+Step 6 :  Create the Networking service API endpoints
+#	openstack endpoint create --region RegionOne network admin http://192.168.0.180:9696
+
+Step 7 : Install the Neutron components
+#	apt-get install neutron-server neutron-dhcp-agent neutron-plugin-openvswitch-agent neutron-l3-agent dnsmasq python-neutronclient
+
+
+Step 8 : Login to Mysql database
+#	mysql -u root -p
+Step 9 : Creating neutron Database
+#	CREATE DATABASE neutron;
+GRANT ALL ON neutron.* TO 'neutronUser'@'%' IDENTIFIED BY 'neutronPass';
+quit;
+// In my Case  password is “root1234”
+Step 10 : Restarting the neutron server
+#	service neutron-server restart;
+	service neutron-openvswitch-agent restart;
+	service neutron-metadata-agent restart;
+	service neutron-dhcp-agent restart;
+	service neutron-l3-agent restart;	
+
+Step 15 : Editing neutron l3 agent file
+#	vim /etc/neutron/l3_agent.ini
+
+interface_driver = neutron.agent.linux.interface.OVSInterfaceDriver
+external_network_bridge =  br-ex
+router_delete_namespaces = True
+verbose = True
+
+
+Step 16 : Editing neutron dhcp agent file
+#	vim /etc/neutron/dhcp_agent.ini
+
+interface_driver = neutron.agent.linux.interface.OVSInterfaceDriver	
+dhcp_driver = neutron.agent.linux.dhcp.Dnsmasq
+verbose = True
+enable_isolated_metadata = True
+
+Step 17 : Editing neutron ml2 plugins file
+#	vim /etc/neutron/plugins/ml2/ml2_conf.ini
+
+[DEFAULT]
+verbose = true
+
+[ml2]
+type_drivers = gre
+tenant_network_types = gre
+mechanism_drivers = openvswitch
+extension_drivers = port_security
+
+[ml2_type_gre]
+tunnel_id_ranges = 1:1000
+
+[securitygroup]
+enable_ipset = true	
+
+
+
+
+
+
+Step 18 : Editing neutron ml2 plugins file ovs config file
+#	vim /etc/neutron/plugins/ml2/openvswitch_agent.ini
+
+[DEFAULT]
+verbose = true
+
+[agent]
+tunnel_types = gre
+
+[ovs]
+local_ip = 192.168.0.180
+bridge_mappings = external:br-ex
+
+[securitygroup]
+firewall_driver = neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
+enable_security_group = True
+
+
+
+
+
+
+Step 19: Editing neutron medata agent file
+#	vim /etc/neutron/metadata_agent.ini	
+
+[DEFAULT]
+# The Neutron user information for accessing the Neutron API.
+auth_uri = http://192.168.0.180:5000
+auth_url = http://192.168.0.180:5000
+memcached_servers = 192.168.0.180:11211
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+project_name = service
+username = neutron
+password = service_pass
+nova_metadata_ip = 192.168.0.180
+metadata_proxy_shared_secret = mystack
+verbose = True	
+
+Step 20 : Editing neutron configuration file
+#	vim /etc/neutron/neutron.conf
+
+[DEFAULT]
+core_plugin = ml2
+service_plugins = router
+allow_overlapping_ips = true
+verbose = true
+auth_strategy = keystone
+rpc_backend = rabbit
+notify_nova_on_port_status_changes = True
+notify_nova_on_port_data_changes = True
+transport_url = rabbit://openstack:rabbit@192.168.0.180
+
+[keystone_authtoken]
+auth_uri = http://192.168.0.180:5000
+auth_url = http://192.168.0.180:5000
+memcached_servers = 192.168.0.180:11211
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+project_name = service
+username = neutron
+password = service_pass
+
+[database]
+connection = mysql+pymysql://neutronUser:neutronPass@192.168.0.180/neutron
+
+
+[nova]
+auth_url = http://192.168.0.180:5000
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+region_name = RegionOne
+project_name = service
+username = nova
+password = service_pass
+
+uncomment this line: connection = sqlite:////var/lib/neutron/neutron.
+
+
+
+
+
+
+
+Step 21 : Restarting the neutron server
+#	service neutron-server restart;
+	service neutron-openvswitch-agent restart;
+	service neutron-metadata-agent restart;
+	service neutron-dhcp-agent restart;
+	service neutron-l3-agent restart;
+	service dnsmasq restart;
+
+
+
+
+
+Step 27 : Synchronize  the Database
+#	su -s /bin/sh -c "neutron-db-manage --config-file /etc/neutron/neutron.conf \
+  --config-file /etc/neutron/plugins/ml2/ml2_conf.ini upgrade head" neutron
+
+
+ Step 28 : Check neutron agents
+#	openstack network agent list

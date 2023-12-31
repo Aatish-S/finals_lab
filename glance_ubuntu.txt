@@ -1,0 +1,98 @@
+Lab 03 Install and Configure Glance
+Step 1 : Create the glance user
+#	openstack user create --domain default --password service_pass glance
+
+Step 2 :  Add the admin role to the glance user and service project
+#	openstack role add --project service --user glance admin
+
+Step 3 :  Create the glance service entity
+#	openstack service create --name glance --description "OpenStack Image service" image
+
+Step 4 :  Create the Image service API endpoints
+#	openstack endpoint create --region RegionOne image public http://192.168.0.175:9292
+
+Step 5 :  Create the Image service API endpoints
+#	openstack endpoint create --region RegionOne image internal http://192.168.0.180:9292
+
+Step 6 :  Create the Image service API endpoints
+#	openstack endpoint create --region RegionOne image admin http://192.168.0.180:9292
+
+
+
+
+Step 7 : Install Glance packages
+#	apt-get install glance -y	
+
+Step 8 : Login to database
+#	mysql -u root -p
+
+#	CREATE DATABASE glance;
+GRANT ALL ON glance.* TO 'glanceUser'@'%' IDENTIFIED BY 'glancePass';
+quit;
+// In my Case Password is “root1234”
+
+Step 9: Edit Glance Configuration Files
+#	vim /etc/glance/glance-api.conf
+
+[database]
+connection = mysql+pymysql://glanceUser:glancePass@192.168.0.180/glance
+										
+[glance_store]
+stores = file,http
+default_store = file
+filesystem_store_datadir = /var/lib/glance/images/
+
+[paste_deploy] 
+flavor = keystone
+
+[keystone_authtoken]
+auth_uri = http://192.168.0.180:5000
+auth_url = http://192.168.0.180:5000
+memcached_servers = 192.168.0.180:11211
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+project_name = service
+username = glance
+password = service_pass
+ 
+
+
+Step 10 : Edit Glance Configuration Files
+#	vim /etc/glance/glance-registry.conf
+
+[database]
+connection = mysql+pymysql://glanceUser:glancePass@192.168.0.180/glance
+(comment below line)
+#sqlite_db = /var/lib/glance/glance.sqlite
+[paste_deploy] 
+flavor = keystone
+
+[keystone_authtoken]
+auth_uri = http://192.168.0.180:5000
+auth_url = http://192.168.0.180:5000
+memcached_servers = 192.168.0.180:11211
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+project_name = service
+username = glance
+password = service_pass
+  
+Step 11 : Synchronize the glance database:
+#	su -s /bin/sh -c "glance-manage db_sync" glance
+
+
+Step 12 : Restart the services glnce registry again to take into account the new modifications
+#	service glance-registry restart;
+	service glance-api restart;
+
+Step 14 : Download cirroslinux image
+#	wget http://download.cirros-cloud.net/0.3.5/cirros-0.3.5-x86_64-disk.img
+
+Step 15 : To test Glance, create new image of the cirros cloud image
+#	openstack image create "cirros"  --file cirros-0.3.5-x86_64-disk.img --disk-format qcow2 --container-format bare --public
+
+Step 16 : List Images
+#	openstack image list
+

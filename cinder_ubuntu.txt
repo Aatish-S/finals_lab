@@ -1,0 +1,100 @@
+Lab 06 Install and Configure Cinder
+Step 1 :  Create a cinder user
+#	openstack user create --domain default --password service_pass cinder
+
+Step 2 :  Add the admin role to the cinder user
+#	openstack role add --project service --user cinder admin
+
+Step 3 :  Create the cinder service entity
+#	openstack service create --name cinder --description "OpenStack Block Storage" volume
+
+Step 4 :  Create the Block Storage service API endpoints
+#	openstack endpoint create --region RegionOne volume public http://192.168.0.175:8776/v1/%\(tenant_id\)s
+
+Step 5 :  Create the Block Storage service API endpoints
+#	openstack endpoint create --region RegionOne volume internal http://192.168.0.180:8776/v1/%\(tenant_id\)s
+
+Step 6 :  Create the Block Storage service API endpoints
+#	openstack endpoint create --region RegionOne volume admin http://192.168.0.180:8776/v1/%\(tenant_id\)s
+
+Step 7 :  Create the cinderv2 service entity
+#	openstack service create --name cinderv2 --description "OpenStack Block Storage" volumev2
+
+
+Step 8 :  Create the Block Storage service API endpoints
+#	openstack endpoint create --region RegionOne volumev2 public http://192.168.0.175:8776/v2/%\(tenant_id\)s
+
+Step 9 :  Create the Block Storage service API endpoints
+#	openstack endpoint create --region RegionOne volumev2 internal http://192.168.0.180:8776/v2/%\(tenant_id\)s
+
+Step 10 :  Create the Block Storage service API endpoints
+#	openstack endpoint create --region RegionOne volumev2 admin http://192.168.0.180:8776/v2/%\(tenant_id\)s
+
+
+Step 11 : Install Cinder Components
+#	apt-get install -y cinder-api cinder-scheduler cinder-volume lvm2 python-cinderclient
+
+Step 12 : Login to database
+#	mysql -u root -p
+Step 13 : Create cinder database
+#	CREATE DATABASE cinder;
+GRANT ALL ON cinder.* TO 'cinderUser'@'%' IDENTIFIED BY 'cinderPass';
+quit;
+
+
+
+
+
+
+
+Step 14 : Edit /etc/cinder/cinder.conf
+#	vim /etc/cinder/cinder.conf
+Note : Do not delete the existing configuration 
+my_ip = 192.168.0.60
+auth_strategy = keystone
+enabled_backends = lvm
+glance_api_servers = http://192.168.0.180:9292
+transport_url = rabbit://openstack:rabbit@192.168.0.180
+
+[database]
+connection = mysql+pymysql://cinderUser:cinderPass@192.168.0.180/cinder
+
+[keystone_authtoken]
+auth_uri = http://192.168.0.180:5000
+auth_url = http://192.168.0.180:5000
+memcached_servers = 192.168.0.180:11211
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+project_name = service
+username = cinder
+password = service_pass 
+
+[oslo_concurrency]
+lock_path = /var/lock/cinder
+
+[lvm]
+volume_driver = cinder.volume.drivers.lvm.LVMVolumeDriver
+volume_group = cinder-volumes
+iscsi_protocol = iscsi
+iscsi_helper = tgtadm
+
+
+Step 15 : Synchronize Database
+#	su -s /bin/sh -c "cinder-manage db sync" cinder
+
+Step 16 : Create Physical volume
+#	apt install scsitools
+	rescan-scsi-bus
+	lsblk
+	pvcreate /dev/sdb
+
+
+Step 17 : Create Volume group
+#	vgcreate cinder-volumes /dev/sdb
+
+Step 18 : Restart tgt Cinder Service
+#	service tgt restart
+	service cinder-volume restart
+	service cinder-scheduler restart
+
