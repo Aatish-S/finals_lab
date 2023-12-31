@@ -1,0 +1,86 @@
+Lab 08 Install and Configure Cinder
+Step 1:  Create a cinder user
+#	openstack user create --domain default --password service_pass cinder
+Step 2:  Add the admin role to the cinder user
+#	openstack role add --project service --user cinder admin
+Step 3:  Create the cinder service entity
+#	openstack service create --name cinderv2 --description "OpenStack Block Storage" volumev2
+Step 4:  Create the Block Storage service API endpoints
+#	openstack endpoint create --region RegionOne volumev2 public http://192.168.0.120:8776/v2/%\(project_id\)s
+
+#	openstack endpoint create --region RegionOne volumev2 internal http://10.10.100.121:8776/v2/%\(project_id\)s
+
+#	openstack endpoint create --region RegionOne volumev2 admin http://10.10.100.121:8776/v2/%\(project_id\)s
+
+Step 5:  Create the cinderv3 service entity
+#	openstack service create --name cinderv3 --description "OpenStack Block Storage" volumev3
+Step 6:  Create the Block Storage service API endpoints
+#	openstack endpoint create --region RegionOne volumev3 public http://192.168.0.120:8776/v3/%\(project_id\)s
+
+#	openstack endpoint create --region RegionOne volumev3 internal http://10.10.100.121:8776/v3/%\(project_id\)s
+
+#	openstack endpoint create --region RegionOne volumev3 admin http://10.10.100.121:8776/v3/%\(project_id\)s
+
+Step 7: Install Cinder Components
+#	yum install -y openstack-cinder lvm2 targetcli device-mapper-persistent-data python-keystone
+
+Step 8: Login to database
+#	mysql -u root -p
+
+#	CREATE DATABASE cinder;
+	GRANT ALL ON cinder.* TO 'cinderUser'@'%' IDENTIFIED BY 'cinderPass';
+	quit;
+
+Step 9: Edit /etc/cinder/cinder.conf
+#	vim /etc/cinder/cinder.conf
+
+
+[Default]
+my_ip = 10.10.100.121
+auth_strategy = keystone
+enabled_backends = lvm
+glance_api_servers = http://10.10.100.121:9292
+transport_url = rabbit://openstack:rabbit@10.10.100.121
+
+[database]
+connection = mysql+pymysql://cinderUser:cinderPass@10.10.100.121/cinder
+
+[keystone_authtoken]
+auth_uri = http://10.10.100.121:5000
+auth_url = http://10.10.100.121:5000
+memcached_servers = 10.10.100.121:11211
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+project_name = service
+username = cinder
+password = service_pass 
+
+[oslo_concurrency]
+lock_path = /var/lib/cinder/tmp
+
+Note: [lvm] section is not there ,Copy and paste the whole [lvm] section below oslo_concurrency
+[lvm]
+volume_driver = cinder.volume.drivers.lvm.LVMVolumeDriver
+volume_group = cinder-volumes
+iscsi_protocol = iscsi
+iscsi_helper = lioadm
+
+
+Step 10: Synchronize Database
+#	su -s /bin/sh -c "cinder-manage db sync" cinder
+
+
+Step 11: Create Physical volume
+#	pvcreate /dev/sdb
+Step 12: Create Volume group
+#	vgcreate cinder-volumes /dev/sdb
+
+Step 13: Start the cinder-volume service including its dependencies and configure them to start when the system boots
+#	systemctl enable openstack-cinder-volume.service target.service openstack-cinder-api.service openstack-cinder-scheduler.service openstack-cinder-backup.service
+
+#	systemctl start openstack-cinder-volume.service target.service openstack-cinder-api.service openstack-cinder-scheduler.service openstack-cinder-backup.service
+
+Step 14: Check openstack volume service list
+#	openstack volume service list
+

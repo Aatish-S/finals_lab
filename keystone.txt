@@ -1,0 +1,89 @@
+Install and Configure the Keystone
+Step 1: Install Memcached and keystone packages
+#	yum install openstack-keystone httpd mod_wsgi -y
+Step 2: Create database 
+#	mysql -u root -p
+
+#	CREATE DATABASE keystone;
+	GRANT ALL ON keystone.* TO 'keystoneUser'@'%' IDENTIFIED BY 'keystonePass';
+	Quit;
+Step 3: Adapt the connection attribute in the /etc/keystone/keystone.conf to the new database
+#	vim /etc/keystone/keystone.conf
+
+[database]
+connection = mysql+pymysql://keystoneUser:keystonePass@10.10.100.181/keystone
+
+[token]
+provider = fernet
+
+[cache]
+memcache_servers = 10.10.100.181:11211
+
+Step 4: Synchronize the database
+#	su -s /bin/sh -c "keystone-manage db_sync" keystone
+Step 5: Initialize Fernet key repositories:
+# 	keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
+
+#	keystone-manage credential_setup --keystone-user keystone --keystone-group keystone
+Step 6: Bootstrap the Identity service
+keystone-manage bootstrap --bootstrap-password openstack \
+  --bootstrap-admin-url http://10.10.100.181:5000/v3/ \
+  --bootstrap-internal-url http://10.10.100.181:5000/v3/ \
+  --bootstrap-public-url http://192.168.0.180:5000/v3/ \
+  --bootstrap-region-id RegionOne
+Step 7: Configure httpd server
+#	vim /etc/httpd/conf/httpd.conf
+ServerName	rocky
+
+Step 8: Enable and start the Httpd server
+#	ln -s /usr/share/keystone/wsgi-keystone.conf /etc/httpd/conf.d/
+
+#	systemctl enable httpd.service
+	systemctl start httpd.service
+Step 9: Configure Administrative Account
+ export OS_USERNAME=admin
+export OS_PASSWORD=openstack
+export OS_PROJECT_NAME=admin
+export OS_USER_DOMAIN_NAME=Default
+export OS_PROJECT_DOMAIN_NAME=Default
+export OS_AUTH_URL=http://192.168.0.180:5000/v3
+export OS_IDENTITY_API_VERSION=3
+
+Step 10: Test openstack users
+#	openstack user list
+Step 11: Create the service project
+#	openstack project create --domain default --description "Service Project" service
+Step 12: Create demo project
+#	openstack project create --domain default --description "Demo Project" demo
+Step 13: Create demo user
+#	openstack user create --domain default --password demo_pass demo
+Step 14: Create user role
+#	openstack role create user
+Step 15: Add user role to demo user
+#	openstack role add --project demo --user demo user
+
+Step 16: Create a admin credential file
+#	vim creds
+export OS_PROJECT_DOMAIN_NAME=default
+export OS_USER_DOMAIN_NAME=default
+export OS_PROJECT_NAME=admin
+export OS_USERNAME=admin
+export OS_PASSWORD=openstack
+export OS_AUTH_URL=http://192.168.0.120:5000/v3
+export OS_IDENTITY_API_VERSION=3
+export OS_IMAGE_API_VERSION=2
+
+Step 17: Create a demo credential file
+#	vim democreds
+export OS_PROJECT_DOMAIN_NAME=default
+export OS_USER_DOMAIN_NAME=default
+export OS_PROJECT_NAME=demo
+export OS_USERNAME=demo
+export OS_PASSWORD=demo_pass
+export OS_AUTH_URL=http://192.168.0.120:5000/v3
+export OS_IDENTITY_API_VERSION=3
+export OS_IMAGE_API_VERSION=2
+Step 18: Now run below command to source credentials 
+#	source creds
+Step 19: Test OpenStack users
+#	openstack user list
